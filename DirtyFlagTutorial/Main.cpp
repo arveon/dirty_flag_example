@@ -12,7 +12,7 @@
 class Entity
 {
 public:
-	SDL_Texture* texture;//texture that is being rendered
+	SDL_Texture * texture;//texture that is being rendered
 	SDL_Texture* spritesheet;//whole animation spritesheet
 	SDL_Rect transform;//position in world
 
@@ -42,12 +42,12 @@ int main(int argc, char* args[])
 	SDL_Manager::init();//initialise all required subsystems for rendering and creating window
 
 	init_objects();//initialise all objects in game space
-	
+
 	std::thread tf(update, update_animations_df, std::ref(objects_df));
 	std::thread td(update, update_animations, std::ref(objects));
 
 	std::cout << "aaa" << std::endl;
-	
+
 	while (true)
 	{
 		SDL_Manager::input();
@@ -65,7 +65,7 @@ void init_objects()
 		Entity* temp = new Entity();
 		objects.push_back(temp);
 
-		temp->transform = {0, 64*i, 32, 64};
+		temp->transform = { 0, 64 * i, 32, 64 };
 		temp->cur_frame = rand() % 8;//start with a random frame
 
 		temp->spritesheet = SDL_Manager::load_texture("walking_cycle.png");
@@ -103,7 +103,7 @@ void update(func f, std::vector<Entity*> objects)
 				Entity* ent = objects.at(i);
 				ent->animation_changed = true;//SET the flag
 
-				//update entity position and if end reached, loop around
+											  //update entity position and if end reached, loop around
 				ent->transform.x += ent->speed_x;
 				if (ent->transform.x + ent->transform.w > 640)
 					ent->transform.x = 0;
@@ -123,39 +123,39 @@ void update(func f, std::vector<Entity*> objects)
 //function responsible for updating the textures on entities. CALLED EVERY TICK TO BETTER DISPLAY THE DIFFERENCE WHEN DIRTY FLAG IS AND ISN'T USED
 void update_animations(std::vector<Entity*> &objects)
 {
-		std::cout << "NF: " << std::endl;
-		//std::cout << "b" << std::endl;
-		//update all of the objects animations
-		for (int i = 0; i < objects.size(); i++)
-		{
-			Entity* ent = objects.at(i);
-			SDL_Manager::destroy_texture(ent->texture);//deallocate the previously saved texture to avoid memory leaks
-			ent->texture = SDL_Manager::get_texture_from_spritesheet(ent->spritesheet, { ent->cur_frame * 32, 128, 32,64 });//crop the new frame out of the spritesheet
-		}
+	std::cout << "NF: " << std::endl;
+	//std::cout << "b" << std::endl;
+	//update all of the objects animations
+	for (int i = 0; i < objects.size(); i++)
+	{
+		Entity* ent = objects.at(i);
+		SDL_Manager::destroy_texture(ent->texture);//deallocate the previously saved texture to avoid memory leaks
+		ent->texture = SDL_Manager::get_texture_from_spritesheet(ent->spritesheet, { ent->cur_frame * 32, 128, 32,64 });//crop the new frame out of the spritesheet
+	}
 }
 
 void update_animations_df(std::vector<Entity*> &objects)
 {
-		std::cout << "DF: " << std::endl;
-		//std::cout << "a" << std::endl;
-		//update all of the objects animations
-		for (int i = 0; i < objects.size(); i++)
+	std::cout << "DF: " << std::endl;
+	//std::cout << "a" << std::endl;
+	//update all of the objects animations
+	for (int i = 0; i < objects.size(); i++)
+	{
+		Entity* ent = objects.at(i);
+		if (ent->animation_changed)
 		{
-			Entity* ent = objects.at(i);
-			if (ent->animation_changed)
-			{
-				SDL_Manager::destroy_texture(ent->texture);//deallocate the previously saved texture to avoid memory leaks
-				ent->texture = SDL_Manager::get_texture_from_spritesheet(ent->spritesheet, { ent->cur_frame * 32, 128, 32,64 });//crop the new frame out of the spritesheet
-				ent->animation_changed = false;//clears the flag when animation change is done
-			}
+			SDL_Manager::destroy_texture(ent->texture);//deallocate the previously saved texture to avoid memory leaks
+			ent->texture = SDL_Manager::get_texture_from_spritesheet(ent->spritesheet, { ent->cur_frame * 32, 128, 32,64 });//crop the new frame out of the spritesheet
+			ent->animation_changed = false;//clears the flag when animation change is done
 		}
+	}
 }
 
 //simple draw function
 void draw()
 {
 	SDL_Manager::clear();//fill screen with blue color
-	//add all objects to batch
+						 //add all objects to batch
 	for (int i = 0; i < objects.size(); i++)
 	{
 		Entity* ent = objects.at(i);
