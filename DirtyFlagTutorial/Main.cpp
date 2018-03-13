@@ -6,6 +6,8 @@
 #include <cstdlib>
 #include <ctime>
 
+#include <thread>
+
 //class represents any object inside game
 class Entity
 {
@@ -20,12 +22,18 @@ public:
 	bool animation_changed = true;//dirty flag for when texture needs to be updated
 };
 
+typedef void(*func)(std::vector<Entity*>&);
+
 void init_objects();
-void update();
+void update(func);
 void draw();
-void update_animations();
+void update_animations_df(std::vector<Entity*>&);
+void update_animations(std::vector<Entity*>&);
+
+void game_loop(func, std::vector<Entity*>, bool main_loop);
 
 std::vector<Entity*> objects;//all objects in game space
+std::vector<Entity*> objects_df;//all objects in game space
 
 const int TICKS_FOR_UPDATE = 500;//how often the animation changes. CAN BE ADJUSTED IF NEEDED TO SLOW DOWN/SPEED UP ANIMATION
 
@@ -35,20 +43,17 @@ int main(int argc, char* args[])
 
 	init_objects();//initialise all objects in game space
 
-	//game loop
-	while (true)
-	{
-		SDL_Manager::input();
-		
-		update();
-		draw();
-	}
+	//std::thread df(game_loop, &update_animations_df, std::ref(objects_df), false);
+	//df.detach();
+	game_loop(&update_animations, objects, true);//to make it run the df version, instead of &update_animations use &update_animations_df
+
+	return 0;
 }
 
 //function initialises 15 game objects, their positions, loads spritesheet and crops the texture out of it
 void init_objects()
 {
-	for (int i = 0; i < 15; i++)
+	for (int i = 0; i < 5; i++)
 	{
 		Entity* temp = new Entity();
 		objects.push_back(temp);
@@ -59,15 +64,30 @@ void init_objects()
 		temp->spritesheet = SDL_Manager::load_texture("walking_cycle.png");
 		temp->texture = SDL_Manager::get_texture_from_spritesheet(temp->spritesheet, { temp->cur_frame * 32, 128, 32,64 });
 	}
+
+	for (int i = 5; i < 10; i++)
+	{
+		Entity* temp = new Entity();
+		objects_df.push_back(temp);
+
+		temp->transform = { 0, 64 * i, 32, 64 };
+		temp->cur_frame = rand() % 8;//start with a random frame
+
+		temp->spritesheet = SDL_Manager::load_texture("walking_cycle.png");
+		temp->texture = SDL_Manager::get_texture_from_spritesheet(temp->spritesheet, { temp->cur_frame * 32, 192, 32,64 });
+	}
 }
 
 //called every tick of the game
-void update()
+void update(func f, std::vector<Entity*> objects)
 {
 	static int counter = 0;//keeps track of how many ticks were passed since the last update
+	static int ticks_passed = 0;
 	if (counter >= TICKS_FOR_UPDATE)//every n ticks animation is updated
 	{//when animation is updated
+		std::cout << ticks_passed << std::endl;
 		counter = 0;//reset counter
+		ticks_passed++;
 		//change frame for all entities
 		for (int i = 0; i < objects.size(); i++)
 		{
@@ -86,13 +106,26 @@ void update()
 		}
 	}
 
-	update_animations();
+	f(objects);
 	counter++;//increase the counter
 }
 
 //function responsible for updating the textures on entities. CALLED EVERY TICK TO BETTER DISPLAY THE DIFFERENCE WHEN DIRTY FLAG IS AND ISN'T USED
-void update_animations()
+void update_animations(std::vector<Entity*> &objects)
 {
+	//std::cout << "b" << std::endl;
+	//update all of the objects animations
+	for (int i = 0; i < objects.size(); i++)
+	{
+		Entity* ent = objects.at(i);
+		SDL_Manager::destroy_texture(ent->texture);//deallocate the previously saved texture to avoid memory leaks
+		ent->texture = SDL_Manager::get_texture_from_spritesheet(ent->spritesheet, { ent->cur_frame * 32, 128, 32,64 });//crop the new frame out of the spritesheet
+	}
+}
+
+void update_animations_df(std::vector<Entity*> &objects)
+{
+	//std::cout << "a" << std::endl;
 	//update all of the objects animations
 	for (int i = 0; i < objects.size(); i++)
 	{
@@ -101,8 +134,22 @@ void update_animations()
 		{
 			SDL_Manager::destroy_texture(ent->texture);//deallocate the previously saved texture to avoid memory leaks
 			ent->texture = SDL_Manager::get_texture_from_spritesheet(ent->spritesheet, { ent->cur_frame * 32, 128, 32,64 });//crop the new frame out of the spritesheet
-			//LINE USED TO TOGGLE DIRTY FLAG \/
-			ent->animation_changed = false;//clears the flag when animation change is done (if commented out, flag will not be cleared and will update frame every tick)
+			ent->animation_changed = false;//clears the flag when animation change is done
+		}
+	}
+}
+
+void game_loop(func f, std::vector<Entity*> objects, bool main_loop)
+{
+	//game loop
+	while (true)
+	{
+		std::cout << "aaa" << std::endl;
+		SDL_Manager::input();
+		update(f, objects);
+		if (main_loop)
+		{
+			draw();
 		}
 	}
 }
@@ -117,8 +164,17 @@ void draw()
 		Entity* ent = objects.at(i);
 		SDL_Manager::add_to_queue(ent->texture, ent->transform);
 	}
+
+	//add all df objects to batch
+	for (int i = 0; i < objects_df.size(); i++)
+	{
+		Entity* ent = objects_df.at(i);
+		SDL_Manager::add_to_queue(ent->texture, ent->transform);
+	}
 	//draw batch
 	SDL_Manager::render();
 }
+
+
 
 
