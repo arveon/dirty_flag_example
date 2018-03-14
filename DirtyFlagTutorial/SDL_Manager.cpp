@@ -54,7 +54,7 @@ SDL_Texture* SDL_Manager::load_texture(const char* path)
 	return temp;
 }
 
-void SDL_Manager::input()
+void SDL_Manager::input(Mouse* mouse)
 {
 	SDL_Event event;
 	while (SDL_PollEvent(&event) != 0)
@@ -64,8 +64,32 @@ void SDL_Manager::input()
 			SDL_Quit();
 			exit(0);
 		}
+		else if (event.type == SDL_MOUSEBUTTONDOWN)
+		{
+			mouse->lmb_down = true;
+			mouse->prev_lmb_down = false;
+		}
+		else if (event.type == SDL_MOUSEBUTTONUP)
+		{
+			mouse->lmb_down = false;
+			mouse->prev_lmb_down = true;
+		}
 	}
+	SDL_GetMouseState(&mouse->x, &mouse->y);
 
+}
+
+SDL_Texture * SDL_Manager::get_texture_from_text(const char*  text, SDL_Color color)
+{
+	TTF_Font* font = TTF_OpenFont("Optimus_Princeps.ttf", 24);
+	assert(font);
+	
+	SDL_Surface* temp_s = TTF_RenderText_Solid(font, text, { color.r, color.g, color.b, 255 });
+	assert(temp_s);
+	SDL_Texture* temp_t = SDL_CreateTextureFromSurface(renderer, temp_s);
+
+	SDL_FreeSurface(temp_s);
+	return temp_t;
 }
 
 SDL_Manager::SDL_Manager()

@@ -6,7 +6,8 @@
 #include <cstdlib>
 #include <ctime>
 
-#include <thread>
+#include "Mouse.h"
+#include "Button.h"
 
 //class represents any object inside game
 class Entity
@@ -22,18 +23,21 @@ public:
 	bool animation_changed = true;//dirty flag for when texture needs to be updated
 };
 
-typedef void(*func)(std::vector<Entity*>&);
-
 void init_objects();
-void update(func, std::vector<Entity*>);
+void update();
 void draw();
-void update_animations_df(std::vector<Entity*>&);
-void update_animations(std::vector<Entity*>&);
-
-void game_loop(func, std::vector<Entity*>, bool main_loop);
+void update_animations();
+void update_animations_df();
 
 std::vector<Entity*> objects;//all objects in game space
 std::vector<Entity*> objects_df;//all objects in game space
+
+Entity* status_text;
+
+Mouse mouse;
+Button toggle_button;
+
+bool df_enabled = false;
 
 const int TICKS_FOR_UPDATE = 500;//how often the animation changes. CAN BE ADJUSTED IF NEEDED TO SLOW DOWN/SPEED UP ANIMATION
 
@@ -43,14 +47,10 @@ int main(int argc, char* args[])
 
 	init_objects();//initialise all objects in game space
 
-	std::thread tf(update, update_animations_df, std::ref(objects_df));
-	std::thread td(update, update_animations, std::ref(objects));
-
-	std::cout << "aaa" << std::endl;
-
 	while (true)
 	{
-		SDL_Manager::input();
+		SDL_Manager::input(&mouse);
+		update();
 		draw();
 	}
 
@@ -60,7 +60,7 @@ int main(int argc, char* args[])
 //function initialises 15 game objects, their positions, loads spritesheet and crops the texture out of it
 void init_objects()
 {
-	for (int i = 0; i < 5; i++)
+	for (int i = 1; i < 11; i++)
 	{
 		Entity* temp = new Entity();
 		objects.push_back(temp);
@@ -72,58 +72,66 @@ void init_objects()
 		temp->texture = SDL_Manager::get_texture_from_spritesheet(temp->spritesheet, { temp->cur_frame * 32, 128, 32,64 });
 	}
 
-	for (int i = 5; i < 10; i++)
-	{
-		Entity* temp = new Entity();
-		objects_df.push_back(temp);
+	toggle_button.init({ 0,0 }, 24);
+	mouse.init(SDL_Manager::load_texture("mouse.png"));
 
-		temp->transform = { 0, 64 * i, 32, 64 };
-		temp->cur_frame = rand() % 8;//start with a random frame
-
-		temp->spritesheet = SDL_Manager::load_texture("walking_cycle.png");
-		temp->texture = SDL_Manager::get_texture_from_spritesheet(temp->spritesheet, { temp->cur_frame * 32, 192, 32,64 });
-	}
+	status_text = new Entity();
+	status_text->texture = SDL_Manager::get_texture_from_text("Dirty flag is Off", {255,255,255});
+	status_text->transform = SDL_Manager::get_texture_size(status_text->texture);
+	status_text->transform.x = 640 - status_text->transform.w;
 }
 
 //called every tick of the game
-void update(func f, std::vector<Entity*> objects)
+void update()
 {
-	while (true)
-	{
-		static int counter = 0;//keeps track of how many ticks were passed since the last update
-		static int ticks_passed = 0;
-		if (counter >= TICKS_FOR_UPDATE)//every n ticks animation is updated
-		{//when animation is updated
-			std::cout << ticks_passed << std::endl;
-			counter = 0;//reset counter
-			ticks_passed++;
-			//change frame for all entities
-			for (int i = 0; i < objects.size(); i++)
-			{
-				Entity* ent = objects.at(i);
-				ent->animation_changed = true;//SET the flag
+	static int counter = 0;//keeps track of how many ticks were passed since the last update
+	static int ticks_passed = 0;
+	if (counter >= TICKS_FOR_UPDATE)//every n ticks animation is updated
+	{//when animation is updated
+		counter = 0;//reset counter
+		ticks_passed++;
+		//change frame for all entities
+		for (int i = 0; i < objects.size(); i++)
+		{
+			Entity* ent = objects.at(i);
+			ent->animation_changed = true;//SET the flag
+											//update entity position and if end reached, loop around
+			ent->transform.x += ent->speed_x;
+			if (ent->transform.x + ent->transform.w > 640)
+				ent->transform.x = 0;
 
-											  //update entity position and if end reached, loop around
-				ent->transform.x += ent->speed_x;
-				if (ent->transform.x + ent->transform.w > 640)
-					ent->transform.x = 0;
-
-				//update entity frame and if end reached, loop around
-				ent->cur_frame++;
-				if (ent->cur_frame > 7)
-					ent->cur_frame = 0;
-			}
+			//update entity frame and if end reached, loop around
+			ent->cur_frame++;
+			if (ent->cur_frame > 7)
+				ent->cur_frame = 0;
 		}
-
-		f(objects);
-		counter++;//increase the counter
 	}
+
+	if (!df_enabled)
+		update_animations();
+	else
+		update_animations_df();
+	counter++;//increase the counter
+	toggle_button.update(&mouse);
+	if (toggle_button.is_clicked())
+	{
+		std::string text;
+		df_enabled = !df_enabled;
+		if (df_enabled)
+			text = "Dirty flag is On";
+		else
+			text = "Dirty flag is Off";
+		SDL_Manager::destroy_texture(status_text->texture);
+		status_text->texture = SDL_Manager::get_texture_from_text(text.c_str(), { 255,255,255 });
+		status_text->transform = SDL_Manager::get_texture_size(status_text->texture);
+		status_text->transform.x = 640 - status_text->transform.w;
+	}
+	mouse.update();
 }
 
 //function responsible for updating the textures on entities. CALLED EVERY TICK TO BETTER DISPLAY THE DIFFERENCE WHEN DIRTY FLAG IS AND ISN'T USED
-void update_animations(std::vector<Entity*> &objects)
+void update_animations()
 {
-	std::cout << "NF: " << std::endl;
 	//std::cout << "b" << std::endl;
 	//update all of the objects animations
 	for (int i = 0; i < objects.size(); i++)
@@ -134,10 +142,10 @@ void update_animations(std::vector<Entity*> &objects)
 	}
 }
 
-void update_animations_df(std::vector<Entity*> &objects)
+//function responsible for updating the textures on entities. CALLED EVERY TICK TO BETTER DISPLAY THE DIFFERENCE WHEN DIRTY FLAG IS AND ISN'T USED
+void update_animations_df()
 {
-	std::cout << "DF: " << std::endl;
-	//std::cout << "a" << std::endl;
+	//std::cout << "b" << std::endl;
 	//update all of the objects animations
 	for (int i = 0; i < objects.size(); i++)
 	{
@@ -146,7 +154,7 @@ void update_animations_df(std::vector<Entity*> &objects)
 		{
 			SDL_Manager::destroy_texture(ent->texture);//deallocate the previously saved texture to avoid memory leaks
 			ent->texture = SDL_Manager::get_texture_from_spritesheet(ent->spritesheet, { ent->cur_frame * 32, 128, 32,64 });//crop the new frame out of the spritesheet
-			ent->animation_changed = false;//clears the flag when animation change is done
+			ent->animation_changed = false;
 		}
 	}
 }
@@ -161,13 +169,9 @@ void draw()
 		Entity* ent = objects.at(i);
 		SDL_Manager::add_to_queue(ent->texture, ent->transform);
 	}
-
-	//add all df objects to batch
-	for (int i = 0; i < objects_df.size(); i++)
-	{
-		Entity* ent = objects_df.at(i);
-		SDL_Manager::add_to_queue(ent->texture, ent->transform);
-	}
+	SDL_Manager::add_to_queue(toggle_button.image, toggle_button.draw_rect);
+	SDL_Manager::add_to_queue(mouse.texture, mouse.draw_rect);
+	SDL_Manager::add_to_queue(status_text->texture, status_text->transform);
 	//draw batch
 	SDL_Manager::render();
 }
